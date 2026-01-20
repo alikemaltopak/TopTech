@@ -1,0 +1,3 @@
+# Project exclude paths
+/irrigation_control_app/android/app/build/
+/irrigation_control_app/android/build/

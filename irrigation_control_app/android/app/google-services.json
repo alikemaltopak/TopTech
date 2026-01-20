@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "227663480799",
+    "project_id": "toptech-717ee",
+    "storage_bucket": "toptech-717ee.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:227663480799:android:a8da052308dbe8f009a66a",
+        "android_client_info": {
+          "package_name": "com.example.irrigation_control_app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDk5Bf8nJYcssN6t6t4L_fM1oxlmPLkPf0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

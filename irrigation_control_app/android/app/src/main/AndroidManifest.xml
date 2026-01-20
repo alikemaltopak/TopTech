@@ -1,0 +1,73 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- SMS izni -->
+    <uses-permission android:name="android.permission.SEND_SMS"/>
+    <!-- Konum izni -->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
+    <!-- İnternet izni -->
+    <uses-permission android:name="android.permission.INTERNET"/>
+    <!-- Alarm/Bildirim Sesi için tam ekran izni eklendi -->
+    <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
+
+    <application
+        android:label="TopTech"
+        android:name="${applicationName}"
+        android:icon="@mipmap/launcher_icon">
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:launchMode="singleTop"
+            android:taskAffinity=""
+            android:theme="@style/LaunchTheme"
+            android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode"
+            android:hardwareAccelerated="true"
+            android:windowSoftInputMode="adjustResize">
+            <!-- Specifies an Android theme to apply to this Activity as soon as
+                 the Android process has started. This theme is visible to the user
+                 while the Flutter UI initializes. After that, this theme continues
+                 to determine the Window background behind the Flutter UI. -->
+            <meta-data
+                android:name="io.flutter.embedding.android.NormalTheme"
+                android:resource="@style/NormalTheme"
+                />
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+        </activity>
+
+        <!-- Tam Ekran Bildirim Aktivitesi eklendi (Bildirim Alarmı için) -->
+        <activity
+            android:name="dev.flutter.LocalNotificationActivity"
+            android:exported="true"
+            android:theme="@android:style/Theme.NoDisplay"
+            android:launchMode="singleTop" />
+
+        <!-- Don't delete the meta-data below.
+             This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->
+        <meta-data
+            android:name="flutterEmbedding"
+            android:value="2" />
+    </application>
+
+    <!-- Android 11+ (API 30+) Paket Görünürlüğü Kuralları -->
+    <queries>
+        <!-- 1. SMS Uygulamalarını bulmak ve başlatmak için gereklidir -->
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="sms" />
+        </intent>
+
+        <!-- 2. Google Haritalar'ı bulmak ve başlatmak için gereklidir -->
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="geo" />
+        </intent>
+
+        <!-- 3. Metin işleme aktivitelerini bulmak için gereklidir (varsayılan Flutter ihtiyacı) -->
+        <intent>
+            <action android:name="android.intent.action.PROCESS_TEXT"/>
+            <data android:mimeType="text/plain"/>
+        </intent>
+    </queries>
+</manifest>
