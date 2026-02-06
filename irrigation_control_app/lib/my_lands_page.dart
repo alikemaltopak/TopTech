@@ -107,34 +107,6 @@ class _MyLandsPageState extends State<MyLandsPage> {
           ),
           TextButton(
             onPressed: () async {
-                // Telefon Numarası Kontrolü
-                final phoneInput = _phoneController.text.trim();
-
-                // 1. Telefon Numarası Uzunluk Kontrolü
-                 if (phoneInput.length < 10) {
-                     ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Hata: Telefon numarası eksik veya çok kısa. Lütfen geçerli bir numara girin.'),
-                          backgroundColor: Colors.red,
-                        ),
-                      );
-                      return;
-                  }
-
-                // 2. Benzersizlik Kontrolü
-                // widget.lands tüm arazileri içerir. Kendisi hariç diğerlerinde bu numara var mı?
-                final isDuplicate = widget.lands.any((l) => l.phoneNumber == phoneInput && l.id != land.id);
-                
-                if (isDuplicate) {
-                   ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Hata: Bu telefon numarası zaten başka bir arazide kayıtlı.'),
-                        backgroundColor: Colors.red,
-                      ),
-                    );
-                    return;
-                }
-
               if (_nameController.text.isNotEmpty && _phoneController.text.isNotEmpty) {
 
                 List<String> parts = _coordinateController.text.trim().split(',');
@@ -164,7 +136,7 @@ class _MyLandsPageState extends State<MyLandsPage> {
                 final updatedLand = Land(
                   id: land.id, // ID'yi koru
                   name: _nameController.text,
-                  phoneNumber: phoneInput,
+                  phoneNumber: _phoneController.text,
                   latitude: lat,
                   longitude: lon,
                 );

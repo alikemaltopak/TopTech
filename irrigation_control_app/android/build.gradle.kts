@@ -2,7 +2,7 @@
 
 plugins {
     // Android Gradle Plugin
-    id("com.android.application") version "8.7.0" apply false
+    id("com.android.application") version "8.7.3" apply false
 
     // Kotlin Android Plugin — versiyon 2.1.0 olacak şekilde güncellendi
     id("org.jetbrains.kotlin.android") version "2.1.0" apply false

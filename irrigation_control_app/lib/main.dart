@@ -21,7 +21,6 @@ import 'package:irrigation_control_app/auth_service.dart';
 import 'package:irrigation_control_app/login_page.dart';
 import 'package:irrigation_control_app/admin_page.dart';
 import 'package:irrigation_control_app/land_service.dart'; // Land modelini buradan alıyoruz
-import 'package:irrigation_control_app/history_service.dart'; // HistoryService eklendi
 
 // Firestore kurulumu için sabit ID
 const String APP_ID = 'remote-irrigation-app';
@@ -40,29 +39,20 @@ class SuggestionResult {
 }
 
 class IrrigationSession {
-  String? id; // Firestore Belge ID'si
   DateTime startTime;
   DateTime? endTime;
   String landName;
 
-  IrrigationSession(this.startTime, {this.endTime, required this.landName, this.id});
+  IrrigationSession(this.startTime, {this.endTime, required this.landName});
 
   Duration? get duration => endTime?.difference(startTime);
 }
 
 void main() async {
-  runZonedGuarded<Future<void>>(() async {
-    WidgetsFlutterBinding.ensureInitialized();
-    try {
-      await _initializeFirebase();
-    } catch (e) {
-      print("Firebase initialization error: $e");
-    }
-    await NotificationService().initialize();
-    runApp(const MyApp());
-  }, (error, stack) {
-    print("Caught global error: $error");
-  });
+  WidgetsFlutterBinding.ensureInitialized();
+  await _initializeFirebase();
+  await NotificationService().initialize();
+  runApp(const MyApp());
 }
 
 class MyApp extends StatefulWidget {
@@ -137,7 +127,7 @@ class _MainScreenState extends State<MainScreen> {
   IrrigationSession? _currentSession;
   Duration? _selectedDuration;
   Timer? _timer;
-  final ValueNotifier<Duration> _remainingTimeNotifier = ValueNotifier(Duration.zero);
+  Duration _remainingTime = Duration.zero;
 
   List<Land> _lands = [];
   Land? _selectedLand;
@@ -159,7 +149,7 @@ class _MainScreenState extends State<MainScreen> {
         errorMessage: _errorMessage,
         weatherData: _weatherData,
         selectedDuration: _selectedDuration,
-        remainingTimeNotifier: _remainingTimeNotifier,
+        remainingTime: _remainingTime,
         showDurationPicker: _showDurationPicker,
         resetTimer: _resetTimer,
         selectedLand: _selectedLand,
@@ -170,7 +160,7 @@ class _MainScreenState extends State<MainScreen> {
           );
           setState(() {
             _selectedDuration = result.recommendedDuration;
-            _remainingTimeNotifier.value = result.recommendedDuration;
+            _remainingTime = result.recommendedDuration;
           });
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(content: Text('Önerilen süre: ${result.recommendedDuration.inMinutes} dk. ${result.rationale}')),
@@ -196,7 +186,7 @@ class _MainScreenState extends State<MainScreen> {
           title: const Text('Komut Geçmişi', style: TextStyle(color: Colors.white)),
           iconTheme: const IconThemeData(color: Colors.white),
         ),
-        body: HistoryPage(selectedLand: _selectedLand),
+        body: HistoryPage(commandHistory: _commandHistory, selectedLand: _selectedLand),
       ),
 
       // Index 3: Arazilerim (Opak Scaffold içinde)
@@ -246,7 +236,6 @@ class _MainScreenState extends State<MainScreen> {
   @override
   void dispose() {
     _timer?.cancel();
-    _remainingTimeNotifier.dispose();
     super.dispose();
   }
 
@@ -322,17 +311,19 @@ class _MainScreenState extends State<MainScreen> {
   Future<void> _startTimer() async {
     if (_selectedDuration == null) return;
 
-    _remainingTimeNotifier.value = _selectedDuration!;
+    _remainingTime = _selectedDuration!;
     _timer?.cancel();
     _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
-      if (_remainingTimeNotifier.value.inSeconds > 0) {
-        _remainingTimeNotifier.value = _remainingTimeNotifier.value - const Duration(seconds: 1);
-      } else {
-        _timer?.cancel();
-        if (_isIrrigationOn) {
-          _toggleIrrigation();
+      setState(() {
+        if (_remainingTime.inSeconds > 0) {
+          _remainingTime = _remainingTime - const Duration(seconds: 1);
+        } else {
+          _timer?.cancel();
+          if (_isIrrigationOn) {
+            _toggleIrrigation();
+          }
         }
-      }
+      });
     });
   }
 
@@ -398,43 +389,31 @@ class _MainScreenState extends State<MainScreen> {
     if (picked != null && picked!.inMinutes > 0) {
       setState(() {
         _selectedDuration = picked;
-        _remainingTimeNotifier.value = picked!;
+        _remainingTime = picked!;
       });
     }
   }
 
-  final HistoryService _historyService = HistoryService(); // HistoryService Eklendi
-
-  // _commandHistory listesini tutmaya devam ediyoruz ancak sadece yerel gösterim için değil, sayfa geçişlerinde referans olabilir.
-  // Asıl veriyi HistoryService yönetecek.
-  
   Future<void> _toggleIrrigation() async {
     setState(() {
       _isIrrigationOn = !_isIrrigationOn;
+      if (_isIrrigationOn) {
+        _currentSession = IrrigationSession(DateTime.now(), landName: _selectedLand!.name);
+        _commandHistory.add(_currentSession!);
+      } else {
+        if (_currentSession != null && _currentSession!.endTime == null) {
+          _currentSession!.endTime = DateTime.now();
+        }
+        _timer?.cancel();
+        _remainingTime = Duration.zero;
+        if (_scheduledNotificationId != null) {
+          NotificationService().cancel(_scheduledNotificationId!);
+          _scheduledNotificationId = null;
+        }
+      }
     });
 
     if (_isIrrigationOn) {
-      // Sulama Başlatılıyor
-      final newSession = IrrigationSession(DateTime.now(), landName: _selectedLand!.name);
-      
-      try {
-        // Firestore'a kaydet ve ID al
-        final sessionId = await _historyService.addSession(newSession);
-        newSession.id = sessionId;
-        
-        setState(() {
-           _currentSession = newSession;
-           _commandHistory.add(_currentSession!); // Yerel listeyi de güncelle (HistoryPage stream kullanacak ama yine de tutalım)
-        });
-      } catch (e) {
-        // Hata durumunda kullanıcıyı bilgilendir ama işlemi durdurma (SMS gidebilir)
-        print("Geçmiş kaydı oluşturulamadı: $e");
-         setState(() {
-           _currentSession = newSession; // ID'siz devam et
-           _commandHistory.add(_currentSession!);
-        });
-      }
-
       try {
         if (_selectedDuration != null) {
           await _startTimer();
@@ -452,34 +431,14 @@ class _MainScreenState extends State<MainScreen> {
           await _sendSmsCommand(smsCommand);
         }
       } catch (e) {
-        if (mounted) {
-           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('HATA: Sulama açma sırasında beklenmedik bir hata oluştu: $e'),
-              backgroundColor: Colors.red,
-            ),
-          );
-        }
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('HATA: Sulama açma sırasında beklenmedik bir hata oluştu: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
       }
     } else {
-      // Sulama Durduruluyor
-      setState(() {
-        if (_currentSession != null && _currentSession!.endTime == null) {
-          _currentSession!.endTime = DateTime.now();
-          
-          // Firestore güncelle
-          if (_currentSession!.id != null) {
-            _historyService.updateSession(_currentSession!.id!, _currentSession!.endTime!);
-          }
-        }
-        _timer?.cancel();
-        _remainingTimeNotifier.value = Duration.zero;
-        if (_scheduledNotificationId != null) {
-          NotificationService().cancel(_scheduledNotificationId!);
-          _scheduledNotificationId = null;
-        }
-      });
-      
       await _sendSmsCommand("OFF");
     }
   }
@@ -514,7 +473,7 @@ class _MainScreenState extends State<MainScreen> {
   void _resetTimer() {
     setState(() {
       _selectedDuration = null;
-      _remainingTimeNotifier.value = Duration.zero;
+      _remainingTime = Duration.zero;
       _timer?.cancel();
       if (_scheduledNotificationId != null) {
         NotificationService().cancel(_scheduledNotificationId!);
@@ -659,32 +618,6 @@ class _MainScreenState extends State<MainScreen> {
             TextButton(
               onPressed: () {
                 if (nameController.text.isNotEmpty && phoneController.text.isNotEmpty) {
-                  
-                  final phoneInput = phoneController.text.trim();
-
-                  // 1. Telefon Numarası Uzunluk Kontrolü
-                  if (phoneInput.length < 10) {
-                     ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Hata: Telefon numarası eksik veya çok kısa. Lütfen geçerli bir numara girin.'),
-                          backgroundColor: Colors.red,
-                        ),
-                      );
-                      return;
-                  }
-
-                  // 2. Telefon Numarası Benzersizlik Kontrolü
-                  // _lands listesi o anki kullanıcıya ait arazileri tutar.
-                  final isDuplicate = _lands.any((land) => land.phoneNumber == phoneInput);
-                  if (isDuplicate) {
-                     ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Hata: Bu telefon numarası zaten kayıtlı. Lütfen farklı bir numara girin.'),
-                          backgroundColor: Colors.red,
-                        ),
-                      );
-                      return;
-                  }
 
                   List<String> parts = coordinateController.text.trim().split(',');
                   double? lat;
@@ -709,7 +642,7 @@ class _MainScreenState extends State<MainScreen> {
                     Land(
                       id: '',
                       name: nameController.text,
-                      phoneNumber: phoneInput,
+                      phoneNumber: phoneController.text,
                       latitude: null,
                       longitude: null,
                     ),
@@ -803,7 +736,7 @@ class HomePageContent extends StatelessWidget {
   final String errorMessage;
   final Map<String, dynamic>? weatherData;
   final Duration? selectedDuration;
-  final ValueNotifier<Duration> remainingTimeNotifier;
+  final Duration remainingTime;
   final VoidCallback showDurationPicker;
   final VoidCallback resetTimer;
   final Land? selectedLand;
@@ -817,7 +750,7 @@ class HomePageContent extends StatelessWidget {
     required this.isLoading,
     required this.errorMessage,
     required this.selectedDuration,
-    required this.remainingTimeNotifier,
+    required this.remainingTime,
     required this.showDurationPicker,
     required this.resetTimer,
     this.weatherData,
@@ -949,36 +882,28 @@ class HomePageContent extends StatelessWidget {
                               ),
                               const SizedBox(height: 16),
                               if (selectedDuration != null && isIrrigationOn)
-                                ValueListenableBuilder<Duration>(
-                                  valueListenable: remainingTimeNotifier,
-                                  builder: (context, remainingTime, child) {
-                                    return SizedBox(
-                                      width: 150,
-                                      height: 150,
-                                      child: Stack(
-                                        alignment: Alignment.center,
-                                        children: [
-                                          SizedBox(
-                                            width: 150,
-                                            height: 150,
-                                            child: CircularProgressIndicator(
-                                              value: selectedDuration!.inSeconds > 0
-                                                  ? remainingTime.inSeconds / selectedDuration!.inSeconds
-                                                  : 0.0,
-                                              strokeWidth: 10,
-                                              backgroundColor: Colors.grey.shade300,
-                                              valueColor: AlwaysStoppedAnimation<Color>(Colors.green.shade700),
-                                            ),
-                                          ),
-                                          Text(
-                                            _formatDuration(remainingTime),
-                                            style: TextStyle(
-                                                fontSize: 24, fontWeight: FontWeight.bold, color: Colors.green.shade700),
-                                          ),
-                                        ],
+                                SizedBox(
+                                  width: 150,
+                                  height: 150,
+                                  child: Stack(
+                                    alignment: Alignment.center,
+                                    children: [
+                                      SizedBox(
+                                        width: 150,
+                                        height: 150,
+                                        child: CircularProgressIndicator(
+                                          value: selectedDuration!.inSeconds > 0 ? remainingTime.inSeconds / selectedDuration!.inSeconds : 0.0,
+                                          strokeWidth: 10,
+                                          backgroundColor: Colors.grey.shade300,
+                                          valueColor: AlwaysStoppedAnimation<Color>(Colors.green.shade700),
+                                        ),
                                       ),
-                                    );
-                                  },
+                                      Text(
+                                        _formatDuration(remainingTime),
+                                        style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.green.shade700),
+                                      ),
+                                    ],
+                                  ),
                                 )
                               else if (selectedDuration != null)
                                 Text(

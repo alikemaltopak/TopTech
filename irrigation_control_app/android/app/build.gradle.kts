@@ -49,9 +49,7 @@ android {
             signingConfig = signingConfigs.getByName("debug")
 
             // Added to resolve class deletion/crash issues that may occur with ProGuard (R8).
-            // Added to resolve class deletion/crash issues that may occur with ProGuard (R8).
-            isMinifyEnabled = false
-            isShrinkResources = false
+            isMinifyEnabled = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android.txt")
             )
@@ -66,12 +64,4 @@ flutter {
 // Dependency required for coreLibraryDesugaring feature to work.
 dependencies {
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.0.4")
-}
-
-configurations.all {
-    resolutionStrategy {
-        force("androidx.core:core-ktx:1.15.0")
-        force("androidx.core:core:1.15.0")
-        force("androidx.browser:browser:1.8.0")
-    }
 }

@@ -44,10 +44,8 @@ dependencies:
   flutter_local_notifications: ^17.2.2
   shared_preferences: ^2.2.3
   timezone: ^0.9.2
-  firebase_core: ^2.32.0 # Firebase'i başlatmak için
-  cloud_firestore: ^4.17.5 # Firestore veritabanı (veri kalıcılığı) için
-  firebase_auth: ^4.17.8 # Firebase Authentication
-  google_sign_in: ^6.2.1 # Google Sign In
+  firebase_core: ^2.27.1 # Firebase'i başlatmak için
+  cloud_firestore: ^4.15.8 # Firestore veritabanı (veri kalıcılığı) için
   collection: ^1.18.0 # Dart listelerini yönetmek (hata çözümü) için
 
 dev_dependencies:

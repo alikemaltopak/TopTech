@@ -58,8 +58,8 @@ class LandService {
     // Kullanıcının E-posta adresini benzersiz UID olarak kullanıyoruz
     final userId = userEmail.replaceAll('.', '_').replaceAll('@', '_');
 
-    // Veri yolu: users/{userId}/lands
-    return 'users/$userId/lands';
+    // Veri yolu: /artifacts/{appId}/users/{userId}/lands
+    return 'artifacts/$appId/users/$userId/lands';
   }
 
   // YENİ METOT: Arazi ekleme
