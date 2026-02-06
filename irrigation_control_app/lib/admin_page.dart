@@ -101,6 +101,7 @@ class _AdminPageState extends State<AdminPage> {
       );
       return;
     }
+    //Admin hesabı
     if (email == 'admin@sirket.com') {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Ana yönetici hesabı silinemez.')),
