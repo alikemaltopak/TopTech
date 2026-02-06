@@ -1,0 +1,47 @@
+{
+  "project_info": {
+    "project_number": "227663480799",
+    "project_id": "toptech-717ee",
+    "storage_bucket": "toptech-717ee.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:227663480799:android:a8da052308dbe8f009a66a",
+        "android_client_info": {
+          "package_name": "com.example.irrigation_control_app"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "227663480799-abga6ghq958rg6fkc8s6jtbkj6evt0rs.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.irrigation_control_app",
+            "certificate_hash": "a0f3ec66376851a5f9532b86d0d14df75a7055a2"
+          }
+        },
+        {
+          "client_id": "227663480799-i4iqd13gnf3t5sj2f55485tkfbdr866r.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDk5Bf8nJYcssN6t6t4L_fM1oxlmPLkPf0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "227663480799-i4iqd13gnf3t5sj2f55485tkfbdr866r.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
