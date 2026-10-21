@@ -17,6 +17,19 @@ Uri buildSmsUri(String phoneNumber, String command) {
   return Uri.parse('smsto:$phoneNumber?body=${Uri.encodeComponent(command)}');
 }
 
+/// WeatherAPI anahtarı; kaynak kodda tutulmaz, `.env` dosyasından derleme anında okunur:
+/// `flutter run --dart-define-from-file=.env`
+const String weatherApiKey = String.fromEnvironment('WEATHER_API_KEY');
+
+/// Verilen koordinat için WeatherAPI anlık hava durumu isteği (Türkçe).
+Uri weatherApiUri(double latitude, double longitude, String apiKey) {
+  return Uri.https('api.weatherapi.com', '/v1/current.json', {
+    'key': apiKey,
+    'q': '$latitude,$longitude',
+    'lang': 'tr',
+  });
+}
+
 /// Hava durumu metnine ve gündüz/gece bilgisine göre ana ekran arka planı.
 String backgroundImageFor(String conditionText, int isDay) {
   conditionText = conditionText.toLowerCase();
@@ -43,6 +56,15 @@ double? convertToDouble(dynamic value) {
   }
   return null;
 }
+
+/// Firestore'daki uygulama kökü: artifacts/{appId}/users/{userId}/...
+const String firestoreAppId = 'remote-irrigation-app';
+
+/// Kullanıcının arazilerinin tutulduğu koleksiyon.
+String landsCollectionPath(String userId) => 'artifacts/$firestoreAppId/users/$userId/lands';
+
+/// Kullanıcının sulama geçmişinin tutulduğu koleksiyon.
+String historyCollectionPath(String userId) => 'artifacts/$firestoreAppId/users/$userId/history';
 
 /// E-posta adresini Firestore yolunda kullanılabilecek kullanıcı kimliğine çevirir.
 String userIdFromEmail(String email) {

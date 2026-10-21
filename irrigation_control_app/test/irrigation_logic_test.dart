@@ -68,6 +68,18 @@ void main() {
     });
   });
 
+  test('WeatherAPI isteği koordinat, anahtar ve Türkçe dil parametresiyle oluşturulur', () {
+    final uri = weatherApiUri(38.493017, 27.529632, 'ANAHTAR');
+    expect(uri.host, 'api.weatherapi.com');
+    expect(uri.path, '/v1/current.json');
+    expect(uri.queryParameters, {'key': 'ANAHTAR', 'q': '38.493017,27.529632', 'lang': 'tr'});
+  });
+
+  test('araziler ve geçmiş aynı kullanıcı kökü altında', () {
+    expect(landsCollectionPath('u1'), 'artifacts/remote-irrigation-app/users/u1/lands');
+    expect(historyCollectionPath('u1'), 'artifacts/remote-irrigation-app/users/u1/history');
+  });
+
   test('e-posta Firestore yolu için güvenli kimliğe çevrilir', () {
     expect(userIdFromEmail('ali.kemal@sirket.com'), 'ali_kemal_sirket_com');
   });

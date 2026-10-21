@@ -22,6 +22,7 @@ import 'package:irrigation_control_app/login_page.dart';
 import 'package:irrigation_control_app/admin_page.dart';
 import 'package:irrigation_control_app/land_service.dart'; // Land modelini buradan alıyoruz
 import 'package:irrigation_control_app/irrigation_logic.dart';
+import 'package:irrigation_control_app/history_service.dart';
 
 // Firestore kurulumu için sabit ID
 const String APP_ID = 'remote-irrigation-app';
@@ -40,11 +41,13 @@ class SuggestionResult {
 }
 
 class IrrigationSession {
+  String? id; // Firestore doküman kimliği (kaydedildikten sonra dolar)
   DateTime startTime;
   DateTime? endTime;
   String landName;
+  String? landId;
 
-  IrrigationSession(this.startTime, {this.endTime, required this.landName});
+  IrrigationSession(this.startTime, {this.endTime, required this.landName, this.landId});
 
   Duration? get duration => endTime?.difference(startTime);
 }
@@ -116,6 +119,9 @@ class MainScreen extends StatefulWidget {
 
 class _MainScreenState extends State<MainScreen> {
   final LandService _landService = LandService();
+  final HistoryService _historyService = HistoryService();
+  StreamSubscription<List<IrrigationSession>>? _historySubscription;
+  Future<String>? _currentSessionIdFuture; // Aktif oturumun Firestore kaydı
 
   int _selectedIndex = 0;
   // PageController kaldırıldı, artık index ile sayfa yönetimi yapılacak
@@ -225,6 +231,24 @@ class _MainScreenState extends State<MainScreen> {
     super.initState();
     _checkAdminStatus();
     _getWeatherData();
+    _listenHistory();
+  }
+
+  // Sulama geçmişini Firestore'dan canlı dinle
+  void _listenHistory() {
+    _historySubscription = _historyService.getHistory().listen(
+      (sessions) {
+        if (mounted) setState(() => _commandHistory = sessions);
+      },
+      onError: (e) => debugPrint('Sulama geçmişi okunamadı: $e'),
+    );
+  }
+
+  void _showHistorySaveError(Object e) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Sulama geçmişi kaydedilemedi: $e'), backgroundColor: Colors.red),
+    );
   }
 
   Future<void> _checkAdminStatus() async {
@@ -237,6 +261,7 @@ class _MainScreenState extends State<MainScreen> {
   @override
   void dispose() {
     _timer?.cancel();
+    _historySubscription?.cancel();
     super.dispose();
   }
 
@@ -246,9 +271,19 @@ class _MainScreenState extends State<MainScreen> {
     final double lat = latitude ?? _turgutluLatitude;
     final double lon = longitude ?? _turgutluLongitude;
 
+    // Anahtar .env dosyasından derleme sırasında gelir: flutter run --dart-define-from-file=.env
+    if (weatherApiKey.isEmpty) {
+      if (mounted) {
+        setState(() {
+          _errorMessage = 'Hava durumu anahtarı (WEATHER_API_KEY) tanımlı değil. .env dosyasını oluşturup uygulamayı --dart-define-from-file=.env ile çalıştırın.';
+          _isLoading = false;
+        });
+      }
+      return;
+    }
+
     try {
-      final response = await http.get(Uri.parse(
-          'https://api.weatherapi.com/v1/current.json?key=62a6672b147c4304bf4115523251006&q=$lat,$lon&lang=tr'));
+      final response = await http.get(weatherApiUri(lat, lon, weatherApiKey));
 
       if (response.statusCode == 200) {
         if (mounted) {
@@ -390,11 +425,22 @@ class _MainScreenState extends State<MainScreen> {
     setState(() {
       _isIrrigationOn = !_isIrrigationOn;
       if (_isIrrigationOn) {
-        _currentSession = IrrigationSession(DateTime.now(), landName: _selectedLand!.name);
-        _commandHistory.add(_currentSession!);
+        _currentSession = IrrigationSession(DateTime.now(), landName: _selectedLand!.name, landId: _selectedLand!.id);
+        _commandHistory.insert(0, _currentSession!);
+        // Oturumu Firestore'a "active" olarak kaydet
+        _currentSessionIdFuture = _historyService.addSession(_currentSession!).catchError((Object e) {
+          _showHistorySaveError(e);
+          return ''; // kayıt başarısız: bitişte güncelleme yapılmaz
+        });
       } else {
         if (_currentSession != null && _currentSession!.endTime == null) {
-          _currentSession!.endTime = DateTime.now();
+          final endTime = DateTime.now();
+          _currentSession!.endTime = endTime;
+          // Kayıt tamamlanınca bitiş zamanını ve süreyi Firestore'a yaz
+          _currentSessionIdFuture
+              ?.then((id) => id.isEmpty ? null : _historyService.updateSession(id, endTime))
+              .catchError((Object e) => _showHistorySaveError(e));
+          _currentSessionIdFuture = null;
         }
         _timer?.cancel();
         _remainingTime = Duration.zero;

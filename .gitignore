@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 # Miscellaneous
 *.class
 *.log
@@ -55,8 +54,8 @@ app.*.map.json
 /irrigation_control_app/android/.gradle/
 /irrigation_control_app/ios/.symlinks/
 /irrigation_control_app/ios/Pods/
-=======
-# Project exclude paths
-/irrigation_control_app/android/app/build/
-/irrigation_control_app/android/build/
->>>>>>> 9fa2d919c1ba0e5271aee45ca738b3f4edbfad3e
+
+# Gizli anahtarlar
+.env
+.env.*
+!.env.example

@@ -44,12 +44,16 @@ class Land {
 }
 
 class LandService {
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-  final AuthService _authService = AuthService();
+  final FirebaseFirestore _firestore;
+  final AuthService _authService;
+
+  // Testlerde sahte Firestore verilebilmesi için bağımlılıklar dışarıdan alınabilir.
+  LandService({FirebaseFirestore? firestore, AuthService? authService})
+      : _firestore = firestore ?? FirebaseFirestore.instance,
+        _authService = authService ?? AuthService();
 
   // Firestore koleksiyon yolunu oluşturur
   Future<String> _getCollectionPath() async {
-    const appId = 'remote-irrigation-app';
     final userEmail = await _authService.getEmail();
 
     if (userEmail == null) {
@@ -60,7 +64,7 @@ class LandService {
     final userId = userIdFromEmail(userEmail);
 
     // Veri yolu: /artifacts/{appId}/users/{userId}/lands
-    return 'artifacts/$appId/users/$userId/lands';
+    return landsCollectionPath(userId);
   }
 
   // YENİ METOT: Arazi ekleme
