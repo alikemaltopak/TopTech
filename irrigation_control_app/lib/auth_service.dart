@@ -27,7 +27,8 @@ class AuthService {
 
     // Eğer depolamada liste yoksa, başlangıç listesini kaydet ve kullan.
     await _saveAuthorizedUsers(_initialUsers);
-    return _initialUsers;
+    // const harita değiştirilemez; addUser/removeUser için kopyasını döndür.
+    return Map<String, String>.from(_initialUsers);
   }
 
   // Yetkili kullanıcı listesini yerel depolamaya kaydeder.

@@ -21,6 +21,8 @@ import 'package:irrigation_control_app/auth_service.dart';
 import 'package:irrigation_control_app/login_page.dart';
 import 'package:irrigation_control_app/admin_page.dart';
 import 'package:irrigation_control_app/land_service.dart'; // Land modelini buradan alıyoruz
+import 'package:irrigation_control_app/irrigation_logic.dart';
+import 'package:irrigation_control_app/history_service.dart';
 
 // Firestore kurulumu için sabit ID
 const String APP_ID = 'remote-irrigation-app';
@@ -39,11 +41,13 @@ class SuggestionResult {
 }
 
 class IrrigationSession {
+  String? id; // Firestore doküman kimliği (kaydedildikten sonra dolar)
   DateTime startTime;
   DateTime? endTime;
   String landName;
+  String? landId;
 
-  IrrigationSession(this.startTime, {this.endTime, required this.landName});
+  IrrigationSession(this.startTime, {this.endTime, required this.landName, this.landId});
 
   Duration? get duration => endTime?.difference(startTime);
 }
@@ -115,6 +119,9 @@ class MainScreen extends StatefulWidget {
 
 class _MainScreenState extends State<MainScreen> {
   final LandService _landService = LandService();
+  final HistoryService _historyService = HistoryService();
+  StreamSubscription<List<IrrigationSession>>? _historySubscription;
+  Future<String>? _currentSessionIdFuture; // Aktif oturumun Firestore kaydı
 
   int _selectedIndex = 0;
   // PageController kaldırıldı, artık index ile sayfa yönetimi yapılacak
@@ -224,6 +231,24 @@ class _MainScreenState extends State<MainScreen> {
     super.initState();
     _checkAdminStatus();
     _getWeatherData();
+    _listenHistory();
+  }
+
+  // Sulama geçmişini Firestore'dan canlı dinle
+  void _listenHistory() {
+    _historySubscription = _historyService.getHistory().listen(
+      (sessions) {
+        if (mounted) setState(() => _commandHistory = sessions);
+      },
+      onError: (e) => debugPrint('Sulama geçmişi okunamadı: $e'),
+    );
+  }
+
+  void _showHistorySaveError(Object e) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Sulama geçmişi kaydedilemedi: $e'), backgroundColor: Colors.red),
+    );
   }
 
   Future<void> _checkAdminStatus() async {
@@ -236,27 +261,29 @@ class _MainScreenState extends State<MainScreen> {
   @override
   void dispose() {
     _timer?.cancel();
+    _historySubscription?.cancel();
     super.dispose();
   }
 
-  double? _convertToDouble(dynamic value) {
-    if (value == null) return null;
-    if (value is double) return value;
-    if (value is int) return value.toDouble();
-    if (value is String) {
-      String cleaned = value.trim().replaceAll(',', '.');
-      return double.tryParse(cleaned);
-    }
-    return null;
-  }
+  double? _convertToDouble(dynamic value) => convertToDouble(value);
 
   Future<void> _getWeatherData({double? latitude, double? longitude}) async {
     final double lat = latitude ?? _turgutluLatitude;
     final double lon = longitude ?? _turgutluLongitude;
 
+    // Anahtar .env dosyasından derleme sırasında gelir: flutter run --dart-define-from-file=.env
+    if (weatherApiKey.isEmpty) {
+      if (mounted) {
+        setState(() {
+          _errorMessage = 'Hava durumu anahtarı (WEATHER_API_KEY) tanımlı değil. .env dosyasını oluşturup uygulamayı --dart-define-from-file=.env ile çalıştırın.';
+          _isLoading = false;
+        });
+      }
+      return;
+    }
+
     try {
-      final response = await http.get(Uri.parse(
-          'https://api.weatherapi.com/v1/current.json?key=62a6672b147c4304bf4115523251006&q=$lat,$lon&lang=tr'));
+      final response = await http.get(weatherApiUri(lat, lon, weatherApiKey));
 
       if (response.statusCode == 200) {
         if (mounted) {
@@ -294,7 +321,7 @@ class _MainScreenState extends State<MainScreen> {
       return;
     }
 
-    final Uri smsLaunchUri = Uri.parse('smsto:${_selectedLand!.phoneNumber}?body=${Uri.encodeComponent(command)}');
+    final Uri smsLaunchUri = buildSmsUri(_selectedLand!.phoneNumber, command);
 
     if (await canLaunchUrl(smsLaunchUri)) {
       await launchUrl(smsLaunchUri);
@@ -398,11 +425,22 @@ class _MainScreenState extends State<MainScreen> {
     setState(() {
       _isIrrigationOn = !_isIrrigationOn;
       if (_isIrrigationOn) {
-        _currentSession = IrrigationSession(DateTime.now(), landName: _selectedLand!.name);
-        _commandHistory.add(_currentSession!);
+        _currentSession = IrrigationSession(DateTime.now(), landName: _selectedLand!.name, landId: _selectedLand!.id);
+        _commandHistory.insert(0, _currentSession!);
+        // Oturumu Firestore'a "active" olarak kaydet
+        _currentSessionIdFuture = _historyService.addSession(_currentSession!).catchError((Object e) {
+          _showHistorySaveError(e);
+          return ''; // kayıt başarısız: bitişte güncelleme yapılmaz
+        });
       } else {
         if (_currentSession != null && _currentSession!.endTime == null) {
-          _currentSession!.endTime = DateTime.now();
+          final endTime = DateTime.now();
+          _currentSession!.endTime = endTime;
+          // Kayıt tamamlanınca bitiş zamanını ve süreyi Firestore'a yaz
+          _currentSessionIdFuture
+              ?.then((id) => id.isEmpty ? null : _historyService.updateSession(id, endTime))
+              .catchError((Object e) => _showHistorySaveError(e));
+          _currentSessionIdFuture = null;
         }
         _timer?.cancel();
         _remainingTime = Duration.zero;
@@ -417,14 +455,13 @@ class _MainScreenState extends State<MainScreen> {
       try {
         if (_selectedDuration != null) {
           await _startTimer();
-          int minutes = _selectedDuration!.inMinutes;
-          final smsCommand = "ON$minutes";
+          final smsCommand = irrigationStartCommand(_selectedDuration);
 
           await Future.delayed(const Duration(seconds: 1));
 
           await _sendSmsCommand(smsCommand);
         } else {
-          final smsCommand = "ON";
+          final smsCommand = irrigationStartCommand(null);
 
           await Future.delayed(const Duration(seconds: 1));
 
@@ -439,7 +476,7 @@ class _MainScreenState extends State<MainScreen> {
         );
       }
     } else {
-      await _sendSmsCommand("OFF");
+      await _sendSmsCommand(irrigationOffCommand);
     }
   }
 
@@ -456,19 +493,7 @@ class _MainScreenState extends State<MainScreen> {
     });
   }
 
-  String _getBackgroundImage(String conditionText, int isDay) {
-    conditionText = conditionText.toLowerCase();
-    if (isDay == 1) {
-      if (conditionText.contains('açık') || conditionText.contains('güneşli')) return 'assets/images/clear_day.png';
-      if (conditionText.contains('parçalı bulutlu') || conditionText.contains('bulutlu')) return 'assets/images/cloudy_overcast_day.jpg';
-      if (conditionText.contains('kapalı')) return 'assets/images/cloudy_overcast_day.jpg';
-    } else {
-      if (conditionText.contains('açık') || conditionText.contains('güneşli')) return 'assets/images/clear_night.jpeg';
-      if (conditionText.contains('parçalı bulutlu') || conditionText.contains('bulutlu')) return 'assets/images/cloudy_overcast_night.jpeg';
-      if (conditionText.contains('kapalı')) return 'assets/images/cloudy_overcast_night.jpeg';
-    }
-    return 'assets/images/cloudy_overcast_day.jpg';
-  }
+  String _getBackgroundImage(String conditionText, int isDay) => backgroundImageFor(conditionText, isDay);
 
   void _resetTimer() {
     setState(() {
@@ -759,13 +784,7 @@ class HomePageContent extends StatelessWidget {
     required this.getBackgroundImage,
   }) : super(key: key);
 
-  String _formatDuration(Duration duration) {
-    String twoDigits(int n) => n.toString().padLeft(2, '0');
-    String hours = twoDigits(duration.inHours);
-    String minutes = twoDigits(duration.inMinutes.remainder(60));
-    String seconds = twoDigits(duration.inSeconds.remainder(60));
-    return "$hours:$minutes:$seconds";
-  }
+  String _formatDuration(Duration duration) => formatCountdown(duration);
 
   @override
   Widget build(BuildContext context) {

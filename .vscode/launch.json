@@ -1,0 +1,12 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "irrigation_control_app",
+      "cwd": "irrigation_control_app",
+      "request": "launch",
+      "type": "dart",
+      "args": ["--dart-define-from-file=.env"]
+    }
+  ]
+}
