@@ -21,6 +21,7 @@ import 'package:irrigation_control_app/auth_service.dart';
 import 'package:irrigation_control_app/login_page.dart';
 import 'package:irrigation_control_app/admin_page.dart';
 import 'package:irrigation_control_app/land_service.dart'; // Land modelini buradan alıyoruz
+import 'package:irrigation_control_app/irrigation_logic.dart';
 
 // Firestore kurulumu için sabit ID
 const String APP_ID = 'remote-irrigation-app';
@@ -239,16 +240,7 @@ class _MainScreenState extends State<MainScreen> {
     super.dispose();
   }
 
-  double? _convertToDouble(dynamic value) {
-    if (value == null) return null;
-    if (value is double) return value;
-    if (value is int) return value.toDouble();
-    if (value is String) {
-      String cleaned = value.trim().replaceAll(',', '.');
-      return double.tryParse(cleaned);
-    }
-    return null;
-  }
+  double? _convertToDouble(dynamic value) => convertToDouble(value);
 
   Future<void> _getWeatherData({double? latitude, double? longitude}) async {
     final double lat = latitude ?? _turgutluLatitude;
@@ -294,7 +286,7 @@ class _MainScreenState extends State<MainScreen> {
       return;
     }
 
-    final Uri smsLaunchUri = Uri.parse('smsto:${_selectedLand!.phoneNumber}?body=${Uri.encodeComponent(command)}');
+    final Uri smsLaunchUri = buildSmsUri(_selectedLand!.phoneNumber, command);
 
     if (await canLaunchUrl(smsLaunchUri)) {
       await launchUrl(smsLaunchUri);
@@ -417,14 +409,13 @@ class _MainScreenState extends State<MainScreen> {
       try {
         if (_selectedDuration != null) {
           await _startTimer();
-          int minutes = _selectedDuration!.inMinutes;
-          final smsCommand = "ON$minutes";
+          final smsCommand = irrigationStartCommand(_selectedDuration);
 
           await Future.delayed(const Duration(seconds: 1));
 
           await _sendSmsCommand(smsCommand);
         } else {
-          final smsCommand = "ON";
+          final smsCommand = irrigationStartCommand(null);
 
           await Future.delayed(const Duration(seconds: 1));
 
@@ -439,7 +430,7 @@ class _MainScreenState extends State<MainScreen> {
         );
       }
     } else {
-      await _sendSmsCommand("OFF");
+      await _sendSmsCommand(irrigationOffCommand);
     }
   }
 
@@ -456,19 +447,7 @@ class _MainScreenState extends State<MainScreen> {
     });
   }
 
-  String _getBackgroundImage(String conditionText, int isDay) {
-    conditionText = conditionText.toLowerCase();
-    if (isDay == 1) {
-      if (conditionText.contains('açık') || conditionText.contains('güneşli')) return 'assets/images/clear_day.png';
-      if (conditionText.contains('parçalı bulutlu') || conditionText.contains('bulutlu')) return 'assets/images/cloudy_overcast_day.jpg';
-      if (conditionText.contains('kapalı')) return 'assets/images/cloudy_overcast_day.jpg';
-    } else {
-      if (conditionText.contains('açık') || conditionText.contains('güneşli')) return 'assets/images/clear_night.jpeg';
-      if (conditionText.contains('parçalı bulutlu') || conditionText.contains('bulutlu')) return 'assets/images/cloudy_overcast_night.jpeg';
-      if (conditionText.contains('kapalı')) return 'assets/images/cloudy_overcast_night.jpeg';
-    }
-    return 'assets/images/cloudy_overcast_day.jpg';
-  }
+  String _getBackgroundImage(String conditionText, int isDay) => backgroundImageFor(conditionText, isDay);
 
   void _resetTimer() {
     setState(() {
@@ -759,13 +738,7 @@ class HomePageContent extends StatelessWidget {
     required this.getBackgroundImage,
   }) : super(key: key);
 
-  String _formatDuration(Duration duration) {
-    String twoDigits(int n) => n.toString().padLeft(2, '0');
-    String hours = twoDigits(duration.inHours);
-    String minutes = twoDigits(duration.inMinutes.remainder(60));
-    String seconds = twoDigits(duration.inSeconds.remainder(60));
-    return "$hours:$minutes:$seconds";
-  }
+  String _formatDuration(Duration duration) => formatCountdown(duration);
 
   @override
   Widget build(BuildContext context) {

@@ -3,6 +3,7 @@ import 'package:intl/intl.dart';
 import 'package:irrigation_control_app/main.dart'; // IrrigationSession için import
 import 'package:irrigation_control_app/my_lands_page.dart'; // Land sınıfı için import
 import 'package:irrigation_control_app/land_service.dart'; // CRITICAL IMPORT ADDED
+import 'package:irrigation_control_app/irrigation_logic.dart';
 
 // CommandHistory sınıfını kaldırıyoruz, main.dart dosyasındaki IrrigationSession kullanılacak.
 // main() ve MyApp sınıflarını da kaldırıyoruz, bunlar main.dart'ta zaten tanımlı.
@@ -35,29 +36,7 @@ class _HistoryPageState extends State<HistoryPage> {
   }
 
   // Süreyi formatlayan yardımcı fonksiyon
-  String _formatDuration(Duration? duration) {
-    if (duration == null) {
-      return 'Devam Ediyor'; // Veya başka bir varsayılan değer
-    }
-    String twoDigits(int n) => n.toString().padLeft(2, "0");
-    String twoDigitMinutes = twoDigits(duration.inMinutes.remainder(60));
-    String twoDigitSeconds = twoDigits(duration.inSeconds.remainder(60));
-    String twoDigitHours = twoDigits(duration.inHours);
-
-    String formattedDuration = '';
-    if (duration.inHours > 0) {
-      formattedDuration += "${twoDigitHours}sa ";
-    }
-    if (duration.inMinutes > 0) {
-      formattedDuration += "${twoDigitMinutes}dk ";
-    }
-    // Saniyeler sadece dakika ve saat yoksa veya 0 değilse gösterilir
-    if (duration.inSeconds > 0 || (duration.inHours == 0 && duration.inMinutes == 0)) {
-      formattedDuration += "${twoDigitSeconds}sn";
-    }
-
-    return formattedDuration.trim(); // Sondaki boşlukları temizle
-  }
+  String _formatDuration(Duration? duration) => formatSessionDuration(duration);
 
   @override
   Widget build(BuildContext context) {

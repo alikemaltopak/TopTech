@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 // import 'package:google_maps_url_extractor/google_maps_url_extractor.dart'; // Artık koordinatları tek string'den alıyoruz, bu paketi kaldırdık.
 import 'package:irrigation_control_app/land_service.dart'; // Land modelini ve servisi buradan alıyoruz.
+import 'package:irrigation_control_app/irrigation_logic.dart';
 
 // NOT: Land sınıfı artık land_service.dart dosyasından gelmektedir ve bu dosyadan kaldırılmıştır.
 
@@ -38,16 +39,7 @@ class _MyLandsPageState extends State<MyLandsPage> {
   // Ancak düzenleme mantığını burada tutuyoruz.
 
   // Yeni eklenen yardımcı fonksiyon: Herhangi bir değeri double'a güvenli bir şekilde dönüştürme (main.dart'tan kopyalandı)
-  double? _convertToDouble(dynamic value) {
-    if (value == null) return null;
-    if (value is double) return value;
-    if (value is int) return value.toDouble();
-    if (value is String) {
-      String cleaned = value.trim().replaceAll(',', '.');
-      return double.tryParse(cleaned);
-    }
-    return null;
-  }
+  double? _convertToDouble(dynamic value) => convertToDouble(value);
 
   void _showEditLandDialog(Land land) {
     // Controller'lar dialog içinde yeniden tanımlanacak

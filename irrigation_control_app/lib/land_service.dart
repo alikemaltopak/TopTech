@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:irrigation_control_app/auth_service.dart';
+import 'package:irrigation_control_app/irrigation_logic.dart';
 import 'dart:async';
 
 // Land Modeli, Firestore'a uygun yapıda tanımlandı.
@@ -56,7 +57,7 @@ class LandService {
     }
 
     // Kullanıcının E-posta adresini benzersiz UID olarak kullanıyoruz
-    final userId = userEmail.replaceAll('.', '_').replaceAll('@', '_');
+    final userId = userIdFromEmail(userEmail);
 
     // Veri yolu: /artifacts/{appId}/users/{userId}/lands
     return 'artifacts/$appId/users/$userId/lands';

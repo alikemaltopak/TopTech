@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:irrigation_control_app/auth_service.dart';
+import 'package:irrigation_control_app/irrigation_logic.dart';
 import 'package:irrigation_control_app/main.dart'; // IrrigationSession modelini buradan alıyoruz
 
 class HistoryService {
@@ -16,7 +17,7 @@ class HistoryService {
     }
 
     // E-postayı güvenli hale getir (dosya yolu için)
-    final userId = userEmail.replaceAll('.', '_').replaceAll('@', '_');
+    final userId = userIdFromEmail(userEmail);
 
     // Veri yolu: users/$userId/history
     return 'users/$userId/history';
