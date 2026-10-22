@@ -14,7 +14,8 @@ import 'package:irrigation_control_app/land_service.dart';
 import 'package:irrigation_control_app/login_page.dart';
 import 'package:irrigation_control_app/main.dart';
 import 'package:irrigation_control_app/weather_detail_page.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+
+import '../test/helpers.dart';
 
 // Flutter SDK içindeki gerçek Roboto ve Material ikon fontlarını yükle (testte varsayılan font kutucuktur).
 Future<void> _loadFonts() async {
@@ -82,7 +83,6 @@ void main() {
     final view = TestWidgetsFlutterBinding.instance.platformDispatcher.views.first;
     view.physicalSize = const Size(1080, 2340);
     view.devicePixelRatio = 2.625; // 411x891 dp telefon
-    SharedPreferences.setMockInitialValues({'logged_in': true, 'user_email': 'admin@sirket.com'});
   });
   tearDown(() => TestWidgetsFlutterBinding.instance.platformDispatcher.views.first.reset());
 
@@ -136,15 +136,19 @@ void main() {
     );
   });
 
-  testWidgets('yönetim', (tester) => _shoot(
+  testWidgets('yönetim', (tester) async {
+    final backend = await TestBackend().seed();
+    await backend.authService.login('admin@sirket.com', 'sifre123');
+    await _shoot(
         tester,
         Scaffold(
           appBar: AppBar(backgroundColor: Colors.lightGreen.shade700, title: const Text('Yönetim', style: TextStyle(color: Colors.white))),
-          body: const AdminPage(),
+          body: AdminPage(authService: backend.authService),
           bottomNavigationBar: _nav(4),
         ),
         'admin',
-      ));
+      );
+  });
 }
 
 Widget _nav(int index) => BottomNavigationBar(

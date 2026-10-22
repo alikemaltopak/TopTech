@@ -1,26 +1,28 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:fake_cloud_firestore/fake_cloud_firestore.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:irrigation_control_app/auth_service.dart';
 import 'package:irrigation_control_app/history_service.dart';
 import 'package:irrigation_control_app/land_service.dart';
 import 'package:irrigation_control_app/main.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
-const historyPath = 'artifacts/remote-irrigation-app/users/test_test_com/history';
-const landsPath = 'artifacts/remote-irrigation-app/users/test_test_com/lands';
+import 'helpers.dart';
+
+// Veriler e-posta yerine Firebase Auth uid'si altında (kurulum@sirket.com → t1)
+const historyPath = 'artifacts/remote-irrigation-app/users/t1/history';
+const landsPath = 'artifacts/remote-irrigation-app/users/t1/lands';
 
 void main() {
+  late TestBackend backend;
   late FakeFirebaseFirestore firestore;
   late HistoryService history;
   late LandService lands;
 
   setUp(() async {
-    SharedPreferences.setMockInitialValues({});
-    await AuthService().login('test@test.com', '123456');
-    firestore = FakeFirebaseFirestore();
-    history = HistoryService(firestore: firestore);
-    lands = LandService(firestore: firestore);
+    backend = await TestBackend().seed();
+    await backend.authService.login('kurulum@sirket.com', '123456');
+    firestore = backend.firestore;
+    history = HistoryService(firestore: firestore, authService: backend.authService);
+    lands = LandService(firestore: firestore, authService: backend.authService);
   });
 
   group('Sulama geçmişi Firestore kaydı', () {
@@ -57,7 +59,7 @@ void main() {
       final id2 = await history.addSession(IrrigationSession(d2, landName: 'Zeytinlik'));
 
       // Yeni bir servis örneği (= uygulamanın yeniden açılması) aynı veriyi görür
-      final sessions = await HistoryService(firestore: firestore).getHistory().first;
+      final sessions = await HistoryService(firestore: firestore, authService: backend.authService).getHistory().first;
       expect(sessions.map((s) => s.id), [id2, id1]);
       expect(sessions[0].landName, 'Zeytinlik');
       expect(sessions[0].duration, isNull); // devam ediyor
@@ -65,7 +67,7 @@ void main() {
     });
 
     test('oturum açık değilse kayıt yapılmaz', () async {
-      await AuthService().logout();
+      await backend.authService.logout();
       await expectLater(
         history.addSession(IrrigationSession(DateTime.now(), landName: 'X')),
         throwsA(predicate((e) => e.toString().contains('oturumu açık değil'))),
@@ -74,8 +76,8 @@ void main() {
 
     test('her kullanıcının geçmişi ayrı tutulur', () async {
       await history.addSession(IrrigationSession(DateTime.now(), landName: 'Zeytinlik'));
-      await AuthService().logout();
-      await AuthService().login('kurulum@sirket.com', '123456');
+      await backend.authService.logout();
+      await backend.authService.login('admin@sirket.com', 'sifre123');
       expect(await history.getHistory().first, isEmpty);
     });
   });

@@ -60,7 +60,9 @@ void main() async {
 }
 
 class MyApp extends StatefulWidget {
-  const MyApp({super.key});
+  final AuthService? authService;
+
+  const MyApp({super.key, this.authService});
 
   @override
   State<MyApp> createState() => _MyAppState();
@@ -77,7 +79,7 @@ class _MyAppState extends State<MyApp> {
   }
 
   Future<void> _checkAuth() async {
-    final logged = await AuthService().isLoggedIn();
+    final logged = await (widget.authService ?? AuthService()).isLoggedIn();
     setState(() {
       _loggedIn = logged;
       _loading = false;
@@ -102,7 +104,7 @@ class _MyAppState extends State<MyApp> {
           ? const Scaffold(body: Center(child: CircularProgressIndicator()))
           : (_loggedIn
           ? const MainScreen()
-          : LoginPage(onLoggedIn: _onLoggedIn)),
+          : LoginPage(onLoggedIn: _onLoggedIn, authService: widget.authService)),
     );
   }
 }

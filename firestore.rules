@@ -1,0 +1,57 @@
+rules_version = '2';
+// TOPTECH — Firestore güvenlik kuralları (proje: toptech-717ee)
+// Bu proje iki uygulama tarafından kullanılır; dosya TopTech ve TopTech_Operation_Green repolarında AYNIDIR.
+// Yayınlama: firebase deploy --only firestore:rules   (veya Firebase konsolu → Firestore → Rules)
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() { return request.auth != null; }
+
+    // ── Web uygulaması (TopTech_Operation_Green) ─────────────────────────────
+    // Kullanıcı belgesi kimliği e-postadan üretilir: "ali.k@x.com" → "ali_k_x_com" (lib/db.ts).
+    // Farklı e-postalar aynı kimliğe düşebileceği için (ali.k@ / ali_k@) e-postanın DOĞRULANMIŞ olması şarttır:
+    // böylece bir kimliği sadece o e-posta kutusunun gerçek sahibi kullanabilir.
+    function ownsWebUserDoc(userId) {
+      return signedIn() && request.auth.token.email_verified == true
+        && request.auth.token.email is string
+        && userId == request.auth.token.email.replace('\\.', '_').replace('@', '_');
+    }
+
+    match /users/{userId} {
+      allow read, write: if ownsWebUserDoc(userId);
+      match /{sub=**} {
+        allow read, write: if ownsWebUserDoc(userId);
+      }
+    }
+
+    // ── Flutter uygulaması (TopTech/irrigation_control_app) ───────────────────
+    // Sadece yönetici tarafından yetkilendirilmiş hesaplar (authorized_users/{uid}, active: true) veri görebilir.
+    // Firebase Auth'ta kendi kendine hesap açan biri bu listede olmadığı için hiçbir şeye erişemez.
+    function flutterAccount() {
+      return get(/databases/$(database)/documents/artifacts/remote-irrigation-app/authorized_users/$(request.auth.uid)).data;
+    }
+    function flutterMember() {
+      return signedIn()
+        && exists(/databases/$(database)/documents/artifacts/remote-irrigation-app/authorized_users/$(request.auth.uid))
+        && flutterAccount().active == true;
+    }
+    function flutterAdmin() { return flutterMember() && flutterAccount().role == 'admin'; }
+
+    match /artifacts/remote-irrigation-app/authorized_users/{uid} {
+      allow read: if signedIn() && (request.auth.uid == uid || flutterAdmin());
+      allow list: if flutterAdmin();
+      allow create, update: if flutterAdmin()
+        && request.resource.data.keys().hasOnly(['email', 'role', 'active', 'createdAt'])
+        && request.resource.data.role in ['admin', 'installer']
+        && request.resource.data.active is bool;
+      allow delete: if false; // erişimi kaldırmak için active: false yapılır
+    }
+
+    // Her kullanıcının arazileri ve sulama geçmişi kendi uid'si altında; başkası okuyamaz
+    match /artifacts/remote-irrigation-app/users/{uid}/{sub=**} {
+      allow read, write: if signedIn() && request.auth.uid == uid && flutterMember();
+    }
+
+    // Diğer her şey kapalı (Firestore varsayılanı)
+  }
+}

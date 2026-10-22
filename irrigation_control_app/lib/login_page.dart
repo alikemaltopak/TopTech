@@ -3,8 +3,9 @@ import 'package:irrigation_control_app/auth_service.dart';
 
 class LoginPage extends StatefulWidget {
   final VoidCallback onLoggedIn;
+  final AuthService? authService;
 
-  const LoginPage({super.key, required this.onLoggedIn});
+  const LoginPage({super.key, required this.onLoggedIn, this.authService});
 
   @override
   State<LoginPage> createState() => _LoginPageState();
@@ -23,7 +24,7 @@ class _LoginPageState extends State<LoginPage> {
     });
 
     try {
-      final authService = AuthService();
+      final authService = widget.authService ?? AuthService();
       await authService.login(_emailController.text, _passwordController.text);
 
       // Giriş başarılıysa ana sayfaya geçişi tetikle
@@ -35,9 +36,11 @@ class _LoginPageState extends State<LoginPage> {
         _errorMessage = e.toString().replaceFirst('Exception: ', '');
       });
     } finally {
-      setState(() {
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
     }
   }
 

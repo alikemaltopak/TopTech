@@ -47,6 +47,7 @@ dependencies:
   firebase_core: ^2.27.1 # Firebase'i başlatmak için
   cloud_firestore: ^4.15.8 # Firestore veritabanı (veri kalıcılığı) için
   collection: ^1.18.0 # Dart listelerini yönetmek (hata çözümü) için
+  firebase_auth: ^4.17.0
 
 dev_dependencies:
   flutter_test:
@@ -60,6 +61,7 @@ dev_dependencies:
   flutter_lints: ^2.0.0
   flutter_launcher_icons: ^0.13.1
   fake_cloud_firestore: ^2.5.2
+  firebase_auth_mocks: ^0.13.0
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
