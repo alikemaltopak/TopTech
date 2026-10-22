@@ -16,11 +16,11 @@ Tarladaki **GSM modüllü sulama kontrol cihazını SMS komutlarıyla** yöneten
 
 | Ekran | Görünüm | Ne yapar? |
 |---|:-:|---|
-| **Yetkili Girişi** | <img src="docs/screenshots/login.png" width="180" /> | Sadece yöneticinin tanımladığı e-posta/şifre ile giriş yapılır. Oturum telefonda saklanır, uygulama tekrar açıldığında yeniden giriş istemez. |
+| **Yetkili Girişi** | <img src="docs/screenshots/login.png" width="180" /> | **Firebase Authentication** ile giriş. Sadece yöneticinin yetkilendirdiği hesaplar girebilir; parolalar uygulamada veya telefonda saklanmaz. Oturum açık kalır; erişimi kaldırılan hesabın oturumu bir sonraki açılışta kapanır. |
 | **Ana Sayfa** | <img src="docs/screenshots/home.png" width="180" /> | Seçili arazinin anlık hava durumu (arka plan hava durumuna ve gündüz/geceye göre değişir). **KUR** ile süre seçilir, **ÖNERİ** 30 dk önerir, **SIFIRLA** süreyi temizler. **AÇ** cihaza `ON<dakika>` (süre yoksa `ON`), **KAPAT** `OFF` SMS'i gönderir. Süre dolunca sulama kendiliğinden kapanır. |
 | **Hava Durumu** | <img src="docs/screenshots/weather.png" width="180" /> | Arazinin koordinatlarına göre sıcaklık, nem, rüzgâr, basınç, hissedilen sıcaklık, görüş, UV ve bulut oranı (WeatherAPI). |
 | **Komut Geçmişi** | <img src="docs/screenshots/history.png" width="180" /> | Seçili arazinin, seçilen güne ait sulama oturumları: açılış/kapanış zamanı ve toplam süre. Kayıtlar Firestore'dan canlı okunur. |
-| **Yönetim** | <img src="docs/screenshots/admin.png" width="180" /> | Sadece `admin@sirket.com` görür. Kurulum yetkilisi ekler/siler; ana yönetici ve oturumu açık kullanıcı silinemez. |
+| **Yönetim** | <img src="docs/screenshots/admin.png" width="180" /> | Sadece **yönetici** rolündeki hesaplar görür. Yeni kurulum yetkilisi ekler (Firebase hesabı oluşturulur) veya erişimini kaldırır; yönetici hesapları ve oturumu açık kullanıcı kaldırılamaz. |
 
 ---
 
@@ -36,7 +36,7 @@ flowchart LR
     DEV --> V[🚰 Selenoid vana / pompa]
     APP -- "Araziler + sulama geçmişi" --> FS[(🔥 Firebase Firestore)]
     APP -- "enlem, boylam" --> W[🌤️ WeatherAPI]
-    APP -- "giriş + yetkili listesi" --> SP[(💾 SharedPreferences)]
+    APP -- "giriş (e-posta / şifre)" --> AUTH[🔐 Firebase Auth]
 ```
 
 ### Bir sulama oturumu
@@ -83,7 +83,10 @@ flowchart TD
 ### Firestore veri yapısı
 
 ```
-artifacts/remote-irrigation-app/users/{kullanici_id}/      ← e-posta: "ali.k@x.com" → "ali_k_x_com"
+artifacts/remote-irrigation-app/
+├── authorized_users/{uid}                ← uygulamayı kullanabilecek hesaplar
+│     email, role ("admin" | "installer"), active
+└── users/{uid}/                          ← Firebase Auth kullanıcı kimliği; sadece sahibi erişir
 ├── lands/{arazi_id}
 │     name, phoneNumber, latitude, longitude, createdAt
 └── history/{oturum_id}
@@ -118,7 +121,26 @@ artifacts/remote-irrigation-app/users/{kullanici_id}/      ← e-posta: "ali.k@x
    ```
    VS Code'da kök klasördeki `.vscode/launch.json` bu parametreyi otomatik verir. Anahtar verilmezse ana ekranda hava durumu yerine uyarı mesajı görünür; sulama kontrolü yine çalışır.
 
+4. **İlk yöneticiyi oluşturun** (bir kez):
+   1. Firebase konsolu → **Authentication** → Sign-in method: **E-posta/Şifre** açık olsun → Users → **Add user** ile yönetici e-postası ve şifresini ekleyin, oluşan **User UID**'yi kopyalayın.
+   2. **Firestore** → `artifacts/remote-irrigation-app/authorized_users/{User UID}` belgesini oluşturun: `email` (string, küçük harf), `role` = `"admin"`, `active` = `true`.
+   3. Diğer kurulum yetkililerini uygulamadaki **Yönetim** sayfasından ekleyin.
+5. Güvenlik kurallarını yayınlayın: depo kökündeki `firestore.rules` ve `storage.rules` (bkz. [Güvenlik](#-güvenlik)).
+
 > ⚠️ Eski WeatherAPI anahtarı daha önce `lib/main.dart` içinde git'e gönderilmişti. Kaynaktan kaldırıldı, ancak git geçmişinde hâlâ duruyor; **weatherapi.com panelinden anahtarı yenileyip** yenisini `.env`'e yazın.
+
+---
+
+## 🔐 Güvenlik
+
+- **Giriş:** Firebase Authentication. Eski sürümdeki sabit parolalar (`admin@sirket.com` / `sifre123` vb.) kaldırıldı; bu parolalar git geçmişinde ve eski APK'larda göründüğü için **artık hiçbir işe yaramaz**.
+- **Yetki:** Bir hesabın uygulamayı kullanabilmesi için `authorized_users/{uid}` belgesinde `active: true` olmalı. Firebase'de kendi kendine hesap açan biri listede olmadığından hiçbir veriyi göremez. Erişimi kaldırılan hesap (`active: false`) veri göremez ve oturumu kapanır.
+- **Veri ayrımı:** Her kullanıcının arazileri (GSM numaraları, konumlar) ve sulama geçmişi kendi uid'si altında tutulur; başka bir kullanıcı (yönetici dahil) okuyamaz.
+- **Kurallar:** Firebase projesi (`toptech-717ee`) web uygulamasıyla (TopTech_Operation_Green) ortaktır. `firestore.rules` ve `storage.rules` iki repoda **aynıdır**; kural testleri TopTech_Operation_Green reposunda `npm run test:rules` ile çalıştırılır (12/12 ✅).
+  ```bash
+  firebase deploy --only firestore:rules,storage   # depo kökünden
+  ```
+- **SMS cihazı:** Cihaz `ON`/`OFF` komutlarını SMS ile aldığı için, numarayı bilen herkes komut gönderebilir. Cihaz yazılımı destekliyorsa sadece kayıtlı telefon numaralarından gelen komutları kabul edecek şekilde (beyaz liste / PIN) ayarlanması önerilir.
 
 ---
 
@@ -132,15 +154,15 @@ UI ve Firebase'den bağımsız iş kuralları (SMS komutları, koordinat dönü�
 
 ### Son çalıştırma sonucu
 
-> 21 Ekim 2026 · Flutter 3.47.7 (stable) · Dart 3.13.5 — **5 dosya, 53 test, 53 başarılı ✅, 0 başarısız**
+> 22 Ekim 2026 · Flutter 3.47.7 (stable) · Dart 3.13.5 — **5 dosya, 58 test, 58 başarılı ✅, 0 başarısız**
 
 | Test dosyası | Test | Sonuç | Doğrulanan davranış |
 |---|:-:|:-:|---|
 | `test/irrigation_logic_test.dart` | 17 | ✅ | `ON<dakika>` / `ON` / `OFF` komutları, `smsto:` URI'si ve URL kodlaması, WeatherAPI isteği, Firestore yolları, gündüz/gece arka planı, virgüllü koordinatlar, süre biçimleri |
-| `test/firestore_services_test.dart` | 7 | ✅ | Sulama başlayınca oturumun `active` kaydı, bitince `endTime` + `durationSeconds` + `completed`, uygulama yeniden açıldığında geçmişin en yeniden eskiye okunması, kullanıcı bazlı ayrım, arazi ekle/listele/güncelle/sil |
-| `test/auth_service_test.dart` | 10 | ✅ | Giriş ve kalıcı oturum, yanlış şifre / yetkisiz e-posta reddi, çıkış, yönetici yetkisi, kullanıcı ekleme/silme |
+| `test/firestore_services_test.dart` | 7 | ✅ | Verilerin kullanıcının uid'si altında tutulması; sulama başlayınca oturumun `active` kaydı, bitince `endTime` + `durationSeconds` + `completed`, uygulama yeniden açıldığında geçmişin en yeniden eskiye okunması, kullanıcı bazlı ayrım, arazi ekle/listele/güncelle/sil |
+| `test/auth_service_test.dart` | 14 | ✅ | Firebase ile giriş, yanlış şifre (hangi bilginin yanlış olduğu söylenmeden), Firebase hesabı olup yetkili listesinde olmayan veya pasifleştirilmiş hesabın reddi, oturum açıkken erişimi kaldırılanın çıkarılması, yönetici rolü, kullanıcı ekleme/yeniden etkinleştirme/kaldırma, parolanın hiçbir yerde saklanmaması |
 | `test/models_test.dart` | 4 | ✅ | `Land` modelinin Firestore'dan okunması, `IrrigationSession` süre hesabı |
-| `test/widgets_test.dart` | 15 | ✅ | Giriş ekranı akışı, yönetim paneli, geçmişin araziye/güne göre filtrelenmesi, hava durumu detayları, ana ekranda AÇ/KAPAT, geri sayım, ÖNERİ, SIFIRLA |
+| `test/widgets_test.dart` | 16 | ✅ | Giriş ekranı akışı (yetkisiz hesabın reddi dahil), yönetim paneli, geçmişin araziye/güne göre filtrelenmesi, hava durumu detayları, ana ekranda AÇ/KAPAT, geri sayım, ÖNERİ, SIFIRLA |
 
 ### Testlerle bulunan ve düzeltilen hatalar
 
@@ -151,6 +173,7 @@ UI ve Firebase'den bağımsız iş kuralları (SMS komutları, koordinat dönü�
 | 3 | Araziler ve geçmiş farklı Firestore köklerine yazılıyordu. | ✅ Düzeltildi — ikisi de `artifacts/remote-irrigation-app/users/{id}/` altında |
 | 4 | WeatherAPI anahtarı kaynak kodda açıktı. | ✅ `.env` + `--dart-define-from-file` (anahtarın yenilenmesi önerilir) |
 | 5 | Hava durumu ekranında rüzgâr hızı `km/s` yazıyor (`km/sa` olmalı). | ⚠️ Kozmetik, açık |
+| 6 | **Güvenlik:** Parolalar kaynak kodda ve telefonda düz metin olarak duruyordu; Firestore'a oturumsuz erişildiği için veritabanının herkese açık olması gerekiyordu. | ✅ Firebase Authentication + yetkili listesi + kullanıcı bazlı kurallar |
 
 > Not: **KUR** butonu yazılım tarafında çalışıyor (saat/dakika seçici açılıyor). Sahadaki devrede arızalı bir bileşen değiştirilene kadar cihaz tarafında süreli çalışma beklemede.
 

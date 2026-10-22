@@ -54,17 +54,15 @@ class LandService {
 
   // Firestore koleksiyon yolunu oluşturur
   Future<String> _getCollectionPath() async {
-    final userEmail = await _authService.getEmail();
+    // Veriler e-posta yerine Firebase Auth uid'si altında tutulur (Firestore kuralları uid'yi doğrular)
+    final uid = _authService.currentUid;
 
-    if (userEmail == null) {
+    if (uid == null) {
       throw Exception('Kullanıcı oturumu açık değil.');
     }
 
-    // Kullanıcının E-posta adresini benzersiz UID olarak kullanıyoruz
-    final userId = userIdFromEmail(userEmail);
-
-    // Veri yolu: /artifacts/{appId}/users/{userId}/lands
-    return landsCollectionPath(userId);
+    // Veri yolu: /artifacts/{appId}/users/{uid}/lands
+    return landsCollectionPath(uid);
   }
 
   // YENİ METOT: Arazi ekleme

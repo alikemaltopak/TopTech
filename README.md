@@ -22,5 +22,11 @@ cd irrigation_control_app
 cp .env.example .env        # WEATHER_API_KEY=...
 flutter pub get
 flutter run --dart-define-from-file=.env
-flutter test                # 53 test
+flutter test                # 58 test
+```
+
+Güvenlik kuralları: `firestore.rules`, `storage.rules` (Firebase projesi web uygulamasıyla ortak; ilk yönetici kurulumu için uygulama README'sine bakın).
+
+```bash
+firebase deploy --only firestore:rules,storage
 ```

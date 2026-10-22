@@ -2,15 +2,17 @@ import 'package:flutter/material.dart';
 import 'package:irrigation_control_app/auth_service.dart';
 
 class AdminPage extends StatefulWidget {
-  const AdminPage({super.key});
+  final AuthService? authService;
+
+  const AdminPage({super.key, this.authService});
 
   @override
   State<AdminPage> createState() => _AdminPageState();
 }
 
 class _AdminPageState extends State<AdminPage> {
-  final AuthService _authService = AuthService();
-  List<String> _userEmails = [];
+  late final AuthService _authService = widget.authService ?? AuthService();
+  List<AuthorizedUser> _users = [];
   bool _isLoading = true;
 
   @override
@@ -24,9 +26,9 @@ class _AdminPageState extends State<AdminPage> {
       _isLoading = true;
     });
     try {
-      final emails = await _authService.getAllUserEmails();
+      final users = await _authService.getAllUsers();
       setState(() {
-        _userEmails = emails;
+        _users = users;
       });
     } catch (e) {
       // Hata yönetimi
@@ -94,15 +96,16 @@ class _AdminPageState extends State<AdminPage> {
     );
   }
 
-  Future<void> _removeUser(String email) async {
+  Future<void> _removeUser(AuthorizedUser user) async {
+    final email = user.email;
     if (email == (await _authService.getEmail())) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Oturumu açık olan kullanıcıyı silemezsiniz.')),
       );
       return;
     }
-    //Admin hesabı
-    if (email == 'admin@sirket.com') {
+    // Yönetici hesapları buradan kaldırılamaz
+    if (user.isAdmin) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Ana yönetici hesabı silinemez.')),
       );
@@ -126,11 +129,20 @@ class _AdminPageState extends State<AdminPage> {
               style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
               child: const Text('Sil'),
               onPressed: () async {
-                await _authService.removeUser(email);
                 Navigator.of(context).pop();
+                try {
+                  await _authService.removeUser(email);
+                } catch (e) {
+                  if (!mounted) return;
+                  ScaffoldMessenger.of(this.context).showSnackBar(
+                    SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),
+                  );
+                  return;
+                }
                 _loadUsers(); // Listeyi yenile
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Kullanıcı başarıyla silindi.')),
+                if (!mounted) return;
+                ScaffoldMessenger.of(this.context).showSnackBar(
+                  const SnackBar(content: Text('Kullanıcıya erişim kaldırıldı.')),
                 );
               },
             ),
@@ -150,22 +162,23 @@ class _AdminPageState extends State<AdminPage> {
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
-          : _userEmails.isEmpty
+          : _users.isEmpty
               ? const Center(child: Text('Yetkili kullanıcı bulunamadı.'))
               : ListView.builder(
                   padding: const EdgeInsets.only(top: 20),
-                  itemCount: _userEmails.length,
+                  itemCount: _users.length,
                   itemBuilder: (context, index) {
-                    final email = _userEmails[index];
+                    final user = _users[index];
+                    final email = user.email;
                     return Card(
                       margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                       child: ListTile(
                         leading: const Icon(Icons.person, color: Colors.blueGrey),
                         title: Text(email, style: const TextStyle(fontWeight: FontWeight.bold)),
-                        subtitle: Text(email == 'admin@sirket.com' ? 'Ana Yönetici' : 'Kurulum Yetkilisi'),
+                        subtitle: Text(user.isAdmin ? 'Yönetici' : 'Kurulum Yetkilisi'),
                         trailing: IconButton(
-                          icon: Icon(Icons.delete, color: email == 'admin@sirket.com' ? Colors.grey : Colors.red),
-                          onPressed: email == 'admin@sirket.com' ? null : () => _removeUser(email),
+                          icon: Icon(Icons.delete, color: user.isAdmin ? Colors.grey : Colors.red),
+                          onPressed: user.isAdmin ? null : () => _removeUser(user),
                         ),
                       ),
                     );

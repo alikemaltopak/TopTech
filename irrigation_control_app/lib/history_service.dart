@@ -14,13 +14,14 @@ class HistoryService {
 
   // Koleksiyon yolunu getir (araziler ile aynı kök: artifacts/{appId}/users/{userId})
   Future<String> _getCollectionPath() async {
-    final userEmail = await _authService.getEmail();
+    // Veriler e-posta yerine Firebase Auth uid'si altında tutulur (Firestore kuralları uid'yi doğrular)
+    final uid = _authService.currentUid;
 
-    if (userEmail == null) {
+    if (uid == null) {
       throw Exception('Kullanıcı oturumu açık değil.');
     }
 
-    return historyCollectionPath(userIdFromEmail(userEmail));
+    return historyCollectionPath(uid);
   }
 
   // Yeni oturum ekle

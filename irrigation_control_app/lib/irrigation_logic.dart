@@ -60,10 +60,13 @@ double? convertToDouble(dynamic value) {
 /// Firestore'daki uygulama kökü: artifacts/{appId}/users/{userId}/...
 const String firestoreAppId = 'remote-irrigation-app';
 
-/// Kullanıcının arazilerinin tutulduğu koleksiyon.
+/// Uygulamayı kullanabilecek hesapların listesi: authorized_users/{uid} = { email, role, active }.
+const String authorizedUsersCollectionPath = 'artifacts/$firestoreAppId/authorized_users';
+
+/// Kullanıcının (Firebase Auth uid'si) arazilerinin tutulduğu koleksiyon.
 String landsCollectionPath(String userId) => 'artifacts/$firestoreAppId/users/$userId/lands';
 
-/// Kullanıcının sulama geçmişinin tutulduğu koleksiyon.
+/// Kullanıcının (Firebase Auth uid'si) sulama geçmişinin tutulduğu koleksiyon.
 String historyCollectionPath(String userId) => 'artifacts/$firestoreAppId/users/$userId/history';
 
 /// E-posta adresini Firestore yolunda kullanılabilecek kullanıcı kimliğine çevirir.
